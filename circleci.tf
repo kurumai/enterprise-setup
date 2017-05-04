@@ -25,6 +25,10 @@ variable "aws_subnet_id_2" {
     description = "2nd Subnet in separate AZ for Postgres RDS"
 }
 
+variable "aws_subnet_id_3" {
+    description = "3rd Subnet for Mongo"
+}
+
 variable "aws_ssh_key_name" {
     description = "The SSH key to be used for the instances"
 }
@@ -51,6 +55,11 @@ variable "max_builders_count" {
 variable "prefix" {
     description = "prefix for resource names"
     default = "circleci"
+}
+
+variable "mongo_instance_type" {
+    description = "Instance type for MongoDB"
+    default = "r3.large"
 }
 
 provider "aws" {
@@ -399,7 +408,7 @@ echo '${var.circle_secret_passphrase}' > $config_dir/circle_secret_passphrase
 echo '${aws_sqs_queue.shutdown_queue.id}' > $config_dir/sqs_queue_url
 echo '${aws_s3_bucket.circleci_bucket.id}' > $config_dir/s3_bucket
 
-echo export CIRCLE_SECRETS_POSTGRES_MAIN_URI='postgres://${var.postgres_db_master_user}:${var.postgres_db_master_password}@${aws_db_instance.circle_postgres.address}:${var.postgres_port}/${var.postgres_db_name}' > /etc/circle-installation-customizations
+#echo export CIRCLE_SECRETS_POSTGRES_MAIN_URI='postgres://${var.postgres_db_master_user}:${var.postgres_db_master_password}@#{aws_db_instance.circle_postgres.address}:${var.postgres_port}/${var.postgres_db_name}' > /etc/circle-installation-customizations
 
 EOF
 
