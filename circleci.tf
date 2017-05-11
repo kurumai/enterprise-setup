@@ -282,6 +282,13 @@ resource "aws_security_group" "circleci_users_sg" {
         from_port = 443
         to_port = 443
     }
+    # TODO: Maybe don't expose this
+    ingress {
+        cidr_blocks = ["0.0.0.0/0"]
+        protocol = "tcp"
+        from_port = 4434
+        to_port = 4434
+    }
     ingress {
         cidr_blocks = ["0.0.0.0/0"]
         protocol = "tcp"
@@ -317,17 +324,7 @@ resource "aws_security_group" "circleci_users_sg" {
 
 variable "base_services_image" {
     default = {
-      ap-northeast-1 = "ami-23fcc944"
-      ap-northeast-2 = "ami-6f6cbe01"
-      ap-southeast-1 = "ami-7949f21a"
-      ap-southeast-2 = "ami-23fff740"
-      eu-central-1 = "ami-e55a868a"
-      eu-west-1 = "ami-995053ff"
-      sa-east-1 = "ami-59d6bb35"
-      us-east-1 = "ami-edf793fb"
-      us-east-2 = "ami-2c2c0b49"
-      us-west-1 = "ami-0e50776e"
-      us-west-2 = "ami-d43fa1b4"
+      us-east-1 = "ami-772aa961"
     }
 }
 
@@ -347,53 +344,112 @@ variable "builder_image" {
     }
 }
 
-resource "aws_instance" "services" {
-    # Instance type - any of the c4 should do for now
+## Services ASG
+resource "aws_elb" "services_elb" {
+    name = "${replace(var.prefix, "_", "-")}-elb"
+
+    subnets = ["${var.aws_subnet_id}"]
+    security_groups = ["${aws_security_group.circleci_users_sg.id}",
+                       "${aws_security_group.circleci_services_sg.id}"]
+
+  listener {
+    instance_port     = 80
+    instance_protocol = "tcp"
+    lb_port           = 80
+    lb_protocol       = "tcp"
+  }
+
+  listener {
+    instance_port     = 443
+    instance_protocol = "tcp"
+    lb_port           = 443
+    lb_protocol       = "tcp"
+  }
+
+  listener {
+    instance_port     = 8800
+    instance_protocol = "tcp"
+    lb_port           = 8800
+    lb_protocol       = "tcp"
+  }
+
+  # TODO: Maybe don't expose this
+  listener {
+    instance_port     = 4434
+    instance_protocol = "tcp"
+    lb_port           = 4434
+    lb_protocol       = "tcp"
+  }
+
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 3
+    target              = "TCP:80"
+    interval            = 30
+  }
+}
+
+resource "aws_launch_configuration" "services_lc" {
     instance_type = "${var.services_instance_type}"
 
-    ami = "${lookup(var.base_services_image, var.aws_region)}"
 
+    image_id = "${lookup(var.base_services_image, var.aws_region)}"
     key_name = "${var.aws_ssh_key_name}"
 
-    subnet_id = "${var.aws_subnet_id}"
-    associate_public_ip_address = true
-    vpc_security_group_ids = [
-        "${aws_security_group.circleci_services_sg.id}",
-        "${aws_security_group.circleci_users_sg.id}"
-    ]
+    security_groups = ["${aws_security_group.circleci_services_sg.id}",
+                       "${aws_security_group.circleci_users_sg.id}"]
 
     iam_instance_profile = "${aws_iam_instance_profile.circleci_profile.name}"
-    tags {
-        Name = "${var.prefix}_services"
-    }
 
-
+    # TODO: Make mongo startup conditional so this device doesn't always need to be big
     root_block_device {
         volume_type = "gp2"
-	volume_size = "150"
-	delete_on_termination = false
+	volume_size = "50"
+	delete_on_termination = true
     }
 
     user_data = <<EOF
 #!/bin/bash
 
-replicated -version || curl https://s3.amazonaws.com/circleci-enterprise/init-services.sh | bash
+set -ex
 
-config_dir=/var/lib/replicated/circle-config
-mkdir -p $config_dir
-echo '${var.aws_region}' > $config_dir/aws_region
-echo '${var.circle_secret_passphrase}' > $config_dir/circle_secret_passphrase
-echo '${aws_sqs_queue.shutdown_queue.id}' > $config_dir/sqs_queue_url
-echo '${aws_s3_bucket.circleci_bucket.id}' > $config_dir/s3_bucket
+startup() {
+  apt-get update; apt-get install -y python-pip
+  pip install awscli
+  aws s3 cp s3://ha-test-bucket-3f5b105a/settings.conf /etc/settings.conf
+  aws s3 cp s3://ha-test-bucket-3f5b105a/replicated.conf /etc/replicated.conf
+  aws s3 cp s3://ha-test-bucket-3f5b105a/license.rli /etc/license.rli
+  aws s3 cp s3://ha-test-bucket-3f5b105a/circle-installation-customizations /etc/circle-installation-customizations
+  curl https://get.replicated.com/docker | bash -s local_address=$(curl http://169.254.169.254/latest/meta-data/local-ipv4) no_proxy=1
+}
+
+time startup
 
 EOF
 
+    # Can't delete an LC until the replacement is applied
     lifecycle {
-        prevent_destroy = true
+      create_before_destroy = true
     }
-
 }
 
+resource "aws_autoscaling_group" "services_asg" {
+    name = "${var.prefix}_services_asg"
+
+    vpc_zone_identifier = ["${var.aws_subnet_id}"]
+    launch_configuration = "${aws_launch_configuration.services_lc.name}"
+    load_balancers = ["${aws_elb.services_elb.name}"]
+    max_size = 1
+    min_size = 1
+    desired_capacity = 1
+    force_delete = true
+    tag {
+      key = "Name"
+      value = "${var.prefix}_services"
+      propagate_at_launch = "true"
+    }
+}
 
 ## Builders ASG
 resource "aws_launch_configuration" "builder_lc" {
@@ -415,7 +471,7 @@ resource "aws_launch_configuration" "builder_lc" {
 
 apt-cache policy | grep circle || curl https://s3.amazonaws.com/circleci-enterprise/provision-builder.sh | bash
 curl https://s3.amazonaws.com/circleci-enterprise/init-builder-0.2.sh | \
-    SERVICES_PRIVATE_IP='${aws_instance.services.private_ip}' \
+    SERVICES_PRIVATE_IP='${aws_elb.services_elb.dns_name}' \
     CIRCLE_SECRET_PASSPHRASE='${var.circle_secret_passphrase}' \
     bash
 
@@ -455,8 +511,4 @@ resource "aws_autoscaling_lifecycle_hook" "builder_shutdown_hook" {
     lifecycle_transition = "autoscaling:EC2_INSTANCE_TERMINATING"
     notification_target_arn = "${aws_sqs_queue.shutdown_queue.arn}"
     role_arn = "${aws_iam_role.shutdown_queue_role.arn}"
-}
-
-output "installation_wizard_url" {
-    value = "http://${aws_instance.services.public_ip}/"
 }
