@@ -324,6 +324,7 @@ resource "aws_security_group" "circleci_users_sg" {
 
 variable "base_services_image" {
     default = {
+      # This can just be the Canonical Trusty image for your region
       us-east-1 = "ami-772aa961"
     }
 }
