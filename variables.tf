@@ -133,3 +133,9 @@ variable "ubuntu_ami" {
   }
 }
 
+variable "github_id" {}
+variable "github_secret" {}
+variable "circle_hostname" {}
+variable "circle_license" {}
+variable "console_password" {}
+

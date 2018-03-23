@@ -15,6 +15,13 @@ data "template_file" "services_user_data" {
     http_proxy               = "${var.http_proxy}"
     https_proxy              = "${var.https_proxy}"
     no_proxy                 = "${var.no_proxy}"
+
+    # Extra vars for headless startup
+    github_id                = "${var.github_id}"
+    github_secret            = "${var.github_secret}"
+    circle_hostname          = "${var.circle_hostname}"
+    circle_license           = "${var.circle_license}"
+    console_password         = "${var.console_password}"
   }
 }
 

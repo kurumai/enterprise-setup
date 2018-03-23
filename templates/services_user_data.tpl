@@ -32,23 +32,47 @@ add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(
 apt-get update
 apt-get -y install docker-ce=17.03.2~ce-0~ubuntu-trusty cgmanager
 
-echo "--------------------------------------------"
-echo "       Installing Replicated"
-echo "--------------------------------------------"
-sleep 3
-bash /tmp/get_replicated.sh local-address="$PRIVATE_IP" no-proxy no-docker
+# Replicated Airgap/Automated Install
 
-echo "--------------------------------------------"
-echo "       Passing Variables"
-echo "--------------------------------------------"
-config_dir=/var/lib/replicated/circle-config
-mkdir -p $config_dir
-echo '${circle_secret_passphrase}' > $config_dir/circle_secret_passphrase
-echo '${sqs_queue_url}' > $config_dir/sqs_queue_url
-echo '${s3_bucket}' > $config_dir/s3_bucket
-echo '${aws_region}' > $config_dir/aws_region
-echo '${subnet_id}' > $config_dir/subnet_id
-echo '${vm_sg_id}' > $config_dir/vm_sg_id
-echo '${http_proxy}' > $config_dir/http_proxy
-echo '${https_proxy}' > $config_dir/https_proxy
-echo '${no_proxy}' > $config_dir/no_proxy
+cat > /etc/settings.conf <<EOF
+{ "hostname": { "value": "${circle_hostname}" },
+  "allow_cluster": { "value": "1" },
+  "secret_passphrase": { "value": "${circle_secret_passphrase}" },
+  "ghe_type": { "value": "github_type_public" },
+  "ghe_client_id": { "value": "${github_id}" },
+  "ghe_client_secret": { "value": "${github_secret}" },
+  "storage_backend": { "value": "storage_backend_s3" },
+  "aws_region": { "value": "${aws_region}" },
+  "s3_bucket": { "value": "${s3_bucket}" },
+  "sqs_queue_url": { "value": "${sqs_queue_url}" },
+  "license_agreement": { "value": "license_agreement_agree" } }
+EOF
+
+cat > /etc/replicated.conf <<EOF
+{ "DaemonAuthenticationType": "password",
+  "DaemonAuthenticationPassword": "${console_password}",
+  "TlsBootstrapType": "self-signed",
+  "TlsBootstrapHostname": "${circle_hostname}",
+  "LogLevel": "debug",
+  "Channel": "stable",
+  "LicenseFileLocation": "/etc/license.rli",
+  "LicenseBootstrapAirgapPackagePath": "/etc/circle.airgap",
+  "ImportSettingsFrom": "/etc/settings.conf",
+  "BypassPreflightChecks": true }
+EOF
+
+echo "${circle_license}" | base64 --decode > /etc/license.rli
+
+# TODO /data/circle/circleci-encryption-keys/crypt-keyset
+# TODO /data/circle/circleci-encryption-keys/sign-keyset
+
+mkdir -p /etc/circleconfig/api-service
+cat > /etc/circleconfig/api-service/customizations <<EOF
+# Hostname tweaks to fix workflows
+EOF
+
+curl -o /etc/circle.airgap "https://s3.amazonaws.com/circle-airgap-test/archive-2.5.0.tgz"
+curl -o replicated.tgz "https://s3.amazonaws.com/replicated-airgap-work/replicated.tar.gz"
+tar xzvf replicated.tgz
+cat ./install.sh | sudo bash -s airgap local-address="$PRIVATE_IP" no-docker no-proxy # or http-proxy=http://...
+
