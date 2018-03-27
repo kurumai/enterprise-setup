@@ -71,7 +71,7 @@ cat > /etc/circleconfig/api-service/customizations <<EOF
 # Hostname tweaks to fix workflows
 EOF
 
-curl -o /etc/circle.airgap "https://s3.amazonaws.com/circle-airgap-test/archive-2.5.0.tgz"
+curl -o /etc/circle.airgap "https://s3.amazonaws.com/circle-airgap-test/archive-2.7.0.tgz"
 curl -o replicated.tgz "https://s3.amazonaws.com/replicated-airgap-work/replicated.tar.gz"
 tar xzvf replicated.tgz
 cat ./install.sh | sudo bash -s airgap local-address="$PRIVATE_IP" no-docker no-proxy # or http-proxy=http://...
