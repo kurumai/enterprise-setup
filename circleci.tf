@@ -209,27 +209,35 @@ resource "aws_security_group" "circleci_users_sg" {
 
   # For Nomad server in 2.0 clustered installation
   ingress {
-    cidr_blocks = ["${data.aws_subnet.subnet.cidr_block}"]
-    protocol    = "tcp"
-    from_port   = 4647
-    to_port     = 4647
+    security_groups = ["${module.nomad.client_security_group_name}"]
+    protocol        = "tcp"
+    from_port       = 4647
+    to_port         = 4647
   }
 
   # For output-processor in 2.0 clustered installation
   ingress {
-    cidr_blocks = ["${data.aws_subnet.subnet.cidr_block}"]
-    protocol    = "tcp"
-    from_port   = 8585
-    to_port     = 8585
+    security_groups = ["${module.nomad.client_security_group_name}"]
+    protocol        = "tcp"
+    from_port       = 8585
+    to_port         = 8585
   }
 
   # For build-agent to talk to vm-service
   ingress {
-    cidr_blocks = ["${data.aws_subnet.subnet.cidr_block}"]
-    protocol    = "tcp"
-    from_port   = 3001
-    to_port     = 3001
+    security_groups = ["${module.nomad.client_security_group_name}"]
+    protocol        = "tcp"
+    from_port       = 3001
+    to_port         = 3001
   }
+
+  # For receiving Nomad Telemetry via StatsD
+  ingress {
+    security_groups = ["${module.nomad.client_security_group_name}"]
+    protocol        = "tcp"
+    from_port       = 8125
+    to_port         = 8126
+   }
 
   # For SSH traffic to builder boxes
   # TODO: Update once services box has ngrok
