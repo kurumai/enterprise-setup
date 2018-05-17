@@ -236,7 +236,7 @@ resource "aws_security_group" "circleci_users_sg" {
     security_groups = ["${module.nomad.client_security_group_name}"]
     protocol        = "tcp"
     from_port       = 8125
-    to_port         = 8126
+    to_port         = 8125
    }
 
   # For SSH traffic to builder boxes
