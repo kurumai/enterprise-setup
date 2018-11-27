@@ -12,7 +12,8 @@ variable "enabled" {
 variable "aws_vpc_id" {}
 variable "aws_ssh_key_name" {}
 variable "aws_subnet_id" {}
-variable "aws_subnet_cidr_block" {}
+variable "aws_subnet_public_cidr_block" {}
+variable "aws_subnet_private_cidr_block" {}
 
 variable "ami_id" {}
 

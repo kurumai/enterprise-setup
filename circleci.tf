@@ -1,5 +1,9 @@
-data "aws_subnet" "subnet" {
-  id = "${var.aws_subnet_id}"
+data "aws_subnet" "subnet_public" {
+  id = "${var.aws_subnet_id_public}"
+}
+
+data "aws_subnet" "subnet_private" {
+  id = "${var.aws_subnet_id_private}"
 }
 
 data "template_file" "services_user_data" {
@@ -10,7 +14,7 @@ data "template_file" "services_user_data" {
     sqs_queue_url            = "${module.shutdown_sqs.sqs_id}"
     s3_bucket                = "${aws_s3_bucket.circleci_bucket.id}"
     aws_region               = "${var.aws_region}"
-    subnet_id                = "${var.aws_subnet_id}"
+    subnet_id                = "${var.aws_subnet_id_public}"
     vm_sg_id                 = "${aws_security_group.circleci_vm_sg.id}"
     http_proxy               = "${var.http_proxy}"
     https_proxy              = "${var.https_proxy}"
@@ -197,7 +201,7 @@ resource "aws_security_group" "circleci_users_sg" {
 
   # For Nomad server in 2.0 clustered installation
   ingress {
-    cidr_blocks = ["${data.aws_subnet.subnet.cidr_block}"]
+    cidr_blocks = ["${data.aws_subnet.subnet_public.cidr_block}", "${data.aws_subnet.subnet_private.cidr_block}"]
     protocol    = "tcp"
     from_port   = 4647
     to_port     = 4647
@@ -205,7 +209,7 @@ resource "aws_security_group" "circleci_users_sg" {
 
   # For output-processor in 2.0 clustered installation
   ingress {
-    cidr_blocks = ["${data.aws_subnet.subnet.cidr_block}"]
+    cidr_blocks = ["${data.aws_subnet.subnet_public.cidr_block}", "${data.aws_subnet.subnet_private.cidr_block}"]
     protocol    = "tcp"
     from_port   = 8585
     to_port     = 8585
@@ -213,7 +217,7 @@ resource "aws_security_group" "circleci_users_sg" {
 
   # For embedded storage in 2.0 clustered installation
   ingress {
-    cidr_blocks = ["${data.aws_subnet.subnet.cidr_block}"]
+    cidr_blocks = ["${data.aws_subnet.subnet_public.cidr_block}", "${data.aws_subnet.subnet_private.cidr_block}"]
     protocol    = "tcp"
     from_port   = 7171
     to_port     = 7171
@@ -221,7 +225,7 @@ resource "aws_security_group" "circleci_users_sg" {
 
   # For build-agent to talk to vm-service
   ingress {
-    cidr_blocks = ["${data.aws_subnet.subnet.cidr_block}"]
+    cidr_blocks = ["${data.aws_subnet.subnet_public.cidr_block}", "${data.aws_subnet.subnet_private.cidr_block}"]
     protocol    = "tcp"
     from_port   = 3001
     to_port     = 3001
@@ -278,7 +282,7 @@ resource "aws_instance" "services" {
   instance_type               = "${var.services_instance_type}"
   ami                         = "${var.services_ami != "" ? var.services_ami : lookup(var.ubuntu_ami, var.aws_region)}"
   key_name                    = "${var.aws_ssh_key_name}"
-  subnet_id                   = "${var.aws_subnet_id}"
+  subnet_id                   = "${var.aws_subnet_id_public}"
   associate_public_ip_address = true
   disable_api_termination     = "${var.services_disable_api_termination}"
   iam_instance_profile        = "${aws_iam_instance_profile.circleci_profile.name}"
@@ -331,7 +335,7 @@ module "legacy_builder" {
 
   prefix                    = "${var.prefix}"
   name                      = "builders"
-  aws_subnet_id             = "${var.aws_subnet_id}"
+  aws_subnet_id             = "${var.aws_subnet_id_private}"
   aws_ssh_key_name          = "${var.aws_ssh_key_name}"
   aws_instance_profile_name = "${aws_iam_instance_profile.circleci_profile.name}"
 
@@ -360,13 +364,14 @@ module "nomad" {
   prefix                = "${var.prefix}"
   instance_type         = "${var.nomad_client_instance_type}"
   aws_vpc_id            = "${var.aws_vpc_id}"
-  aws_subnet_id         = "${var.aws_subnet_id}"
+  aws_subnet_id         = "${var.aws_subnet_id_private}"
   aws_ssh_key_name      = "${var.aws_ssh_key_name}"
   http_proxy            = "${var.http_proxy}"
   https_proxy           = "${var.https_proxy}"
   no_proxy              = "${var.no_proxy}"
   ami_id                = "${(var.services_ami != "") ? var.services_ami : lookup(var.ubuntu_ami, var.aws_region)}"
-  aws_subnet_cidr_block = "${data.aws_subnet.subnet.cidr_block}"
+  aws_subnet_private_cidr_block = "${data.aws_subnet.subnet_private.cidr_block}"
+  aws_subnet_public_cidr_block = "${data.aws_subnet.subnet_public.cidr_block}"
   services_private_ip   = "${aws_instance.services.private_ip}"
 }
 

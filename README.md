@@ -42,7 +42,8 @@ To configure the cluster that terraform will create, simply fill out the terrafo
   | aws_secret_key | Secret key used to create instances |
   | aws_region | Region where instances get created |
   | aws_vpc_id | The VPC ID where the instances should reside |
-  | aws_subnet_id | The subnet-id to be used for the instance |
+  | aws_subnet_id_public | The public subnet-id to be used for the instance |
+  | aws_subnet_id_private | The private subnet-id to be used for the instance |
   | aws_ssh_key_name |  The SSH key to be used for the instances|
   | circle_secret_passphrase | Decryption key for secrets used by CircleCI machines |
 
