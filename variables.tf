@@ -14,8 +14,12 @@ variable "aws_vpc_id" {
   description = "The VPC ID where the instances should reside"
 }
 
-variable "aws_subnet_id" {
-  description = "The subnet-id to be used for the instance"
+variable "aws_subnet_id_public" {
+  description = "The subnet-id to be used for the Server instance"
+}
+
+variable "aws_subnet_id_private" {
+  description = "The subnet-id to be used for the Nomad-client instance"
 }
 
 variable "aws_ssh_key_name" {
@@ -134,4 +138,3 @@ variable "ubuntu_ami" {
     us-west-2      = "ami-779a2d0f"
   }
 }
-
